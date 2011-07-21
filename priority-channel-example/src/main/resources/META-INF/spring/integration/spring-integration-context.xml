@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:int="http://www.springframework.org/schema/integration"
+    xmlns:int-file="http://www.springframework.org/schema/integration/file"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans
+            http://www.springframework.org/schema/beans/spring-beans.xsd
+            http://www.springframework.org/schema/integration
+            http://www.springframework.org/schema/integration/spring-integration-2.0.xsd
+            http://www.springframework.org/schema/integration/file
+            http://www.springframework.org/schema/integration/file/spring-integration-file-2.0.xsd">
+
+    <!-- See also:
+        http://static.springsource.org/spring-integration/reference/htmlsingle/#channel-adapter
+        http://www.eaipatterns.com/ChannelAdapter.html -->
+    <int-file:inbound-channel-adapter id="highPrio" directory="file:input-high" >
+        <int:poller id="poller" fixed-rate="1000"/>
+    </int-file:inbound-channel-adapter>
+
+	<int:header-enricher id="setHighPrio" input-channel="highPrio" output-channel="priority-channel">
+	    <int:priority value="10"/>
+	</int:header-enricher>
+
+    <int-file:inbound-channel-adapter id="lowPrio" directory="file:input-low" >
+        <int:poller id="poller2" fixed-rate="1000"/>
+    </int-file:inbound-channel-adapter>
+
+	<int:header-enricher id="setLowPrio" input-channel="lowPrio" output-channel="priority-channel">
+	    <int:priority value="1"/>
+	</int:header-enricher>
+
+ <!-- See also:
+        http://static.springsource.org/spring-integration/reference/htmlsingle/#channel-implementations -->
+	<int:channel id="priority-channel">
+	    <int:priority-queue/>
+	</int:channel>
+
+	<bean id="headerEnricherHandler" class="com.hillert.si.HeaderEnricherHandler"/>
+
+	<int:header-enricher input-channel="priority-channel"
+		output-channel="out-channel" id="setFileName">
+        <int:poller fixed-rate="5000" max-messages-per-poll="1"/>
+   		<int:header name="file_name" ref="headerEnricherHandler" method="enrichFilenameHeader"/>
+    </int:header-enricher>
+
+	<int:channel id="out-channel">
+	    <int:interceptors>
+	    	<int:wire-tap channel="loggingChannel"/>
+	    </int:interceptors>
+	</int:channel>
+
+    <!-- See also:
+        http://static.springsource.org/spring-integration/reference/htmlsingle/#channel-adapter
+        http://www.eaipatterns.com/ChannelAdapter.html -->
+    <int-file:outbound-channel-adapter id="filesOut" channel="out-channel"
+                                   directory="file:target/output"
+                                   filename-generator=""/>
+
+    <int:logging-channel-adapter id="loggingChannel" log-full-message="true" />
+
+</beans>
